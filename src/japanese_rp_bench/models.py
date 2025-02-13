@@ -332,12 +332,15 @@ def generate_response(
 
     # transformersを使ってローカルで推論する場合
     elif inference_method == "transformers":
+        model.generation_config.pad_token_id = tokenizer.pad_token_id
         messages = [{"role": "system", "content": system_prompt}]
         messages.extend(conversations)
-        input_ids = tokenizer.apply_chat_template(
-            messages, add_generation_prompt=True, return_tensors="pt"
+        return_output =  tokenizer.apply_chat_template(
+            messages, add_generation_prompt=True, return_tensors="pt", return_dict=True 
         ).to(model.device)
-        result = model.generate(input_ids, temperature=0.7, max_new_tokens=1024)
+        input_ids = return_output["input_ids"]
+        attention_mask = return_output["attention_mask"]
+        result = model.generate(input_ids, attention_mask=attention_mask, temperature=0.7, max_new_tokens=1024)
         response = tokenizer.decode(
             result.tolist()[0][input_ids.size(1) :], skip_special_tokens=True
         ).strip()

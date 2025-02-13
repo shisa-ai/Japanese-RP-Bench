@@ -79,7 +79,8 @@ def run_eval(config) -> None:
 
     # ステップ4: 評価データセットごとに処理
     logger.info("各評価データに対する処理を開始（推論+評価）")
-    for test_case in tqdm(dataset):
+    for idx, test_case in enumerate(tqdm(dataset)):
+        logger.info(f"Processing test case {idx + 1}/{len(dataset)}")
         assistant_system_prompt, user_system_prompt, first_user_input = (
             construct_system_prompts(test_case)
         )
@@ -88,9 +89,11 @@ def run_eval(config) -> None:
 
         # ステップ5: max_turns分対話を生成するループ
         for turn in range(config["max_turns"]):
+            logger.info(f"Test case {idx + 1}, Turn {turn + 1}/{config['max_turns']}")
             # 最初のターンは既定のユーザー入力からアシスタントの応答のみを生成
             if turn == 0:
                 conversations = [{"role": "user", "content": first_user_input}]
+                logger.info("Generating initial assistant response...")
                 assistant_response = generate_response(
                     target_model,
                     target_tokenizer,
@@ -163,12 +166,9 @@ def run_eval(config) -> None:
             "Appropriateness of Turn-Taking": 0,
         }
 
-        for (
-            judge_model,
-            judge_tokenizer,
-            judge_model_name,
-            judge_inference_method,
-        ) in judge_models:
+        logger.info(f"Test case {idx + 1}: Running evaluation with {len(judge_models)} judge models")
+        for judge_idx, (judge_model, judge_tokenizer, judge_model_name, judge_inference_method) in enumerate(judge_models):
+            logger.info(f"Running evaluation with judge model {judge_idx + 1}: {judge_model_name}")
             while True:
                 evaluation_result = evaluate_conversation(
                     judge_model,
@@ -200,6 +200,7 @@ def run_eval(config) -> None:
 
                 # jsonの形式が指定のものかをチェック
                 if is_valid_evaluation(evaluation):
+                    logger.info(f"Valid evaluation received from {judge_model_name}")
                     break
                 else:
                     logger.exception(

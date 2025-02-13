@@ -143,16 +143,21 @@ def evaluate_conversation(
 
     # transformersを使ってローカルで推論する場合
     elif inference_method == "transformers":
+        print("Beginning transformers evaluation")
+        model.generation_config.pad_token_id = tokenizer.pad_token_id
         messages = [{"role": "system", "content": evaluation_prompt}]
         messages.append({"role": "user", "content": input_text})
-        input_ids = tokenizer.apply_chat_template(
-            messages, add_generation_prompt=True, return_tensors="pt"
+        return_output =  tokenizer.apply_chat_template(
+            messages, add_generation_prompt=True, return_tensors="pt", return_dict=True 
         ).to(model.device)
-        result = model.generate(input_ids, temperature=0, max_new_tokens=1024)
+        input_ids = return_output["input_ids"]
+        attention_mask = return_output["attention_mask"]
+
+        result = model.generate(input_ids, attention_mask=attention_mask, temperature=0.2, max_new_tokens=1024)
         evaluation_result = tokenizer.decode(
             result.tolist()[0][input_ids.size(1) :], skip_special_tokens=True
         ).strip()
-
+        print("Transfomers evaluation completed.")
     else:
         raise ValueError(f"Unknown inference method: {inference_method}")
 

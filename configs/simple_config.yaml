@@ -1,0 +1,14 @@
+dataset_repo: "Aratako/Japanese-RP-Bench-testdata-SFW"
+dataset_split: "train"
+target_model_name: "allenai/Llama-3.1-Tulu-3-8B"
+target_inference_method: "transformers"
+user_model_name: "allenai/Llama-3.1-Tulu-3-8B"
+user_inference_method: "transformers"
+judge_model_names:
+  - "allenai/Llama-3.1-Tulu-3-8B"
+judge_inference_methods:
+  - "transformers"
+evaluation_prompt_file: "./prompts/eval_prompt_SFW.txt"
+max_turns: 10
+cache_dir: "./.cache"
+tensor_parallel_size: 8
