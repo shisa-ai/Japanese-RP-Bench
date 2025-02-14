@@ -3,7 +3,17 @@
 from typing import Any, List, Optional
 
 import google.generativeai as genai
+import os
 from vllm import SamplingParams
+import cohere
+import google.generativeai as genai
+import torch
+from anthropic import Anthropic, AnthropicBedrock
+from mistralai import Mistral
+from openai import OpenAI
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from vllm import LLM, SamplingParams
+from .helpers.llmcaller.litellm_caller import LiteLLMCaller
 
 
 # 評価を実行する関数
@@ -29,7 +39,7 @@ def evaluate_conversation(
 
     # 評価モデルに入力を与えて評価を取得
     # OPENAI APIの場合
-    if inference_method == "openai_api":
+    if inference_method == "openai_api" or inference_method == "openai_compatible_api":
         if "o1" in model_name:
             # o1はシステムプロンプトをサポートしていないのでシステムプロンプトと最初の会話を結合
             messages = [
@@ -46,12 +56,24 @@ def evaluate_conversation(
         else:
             messages = [{"role": "system", "content": evaluation_prompt}]
             messages.append({"role": "user", "content": input_text})
-            result = model.chat.completions.create(
+            api_key = os.getenv("JUDGE_OPENAI_COMPATIBLE_API_KEY") or None
+            if not api_key:
+                raise ValueError(
+                    "openai compatible api key is not set, please set OPENAI_COMPATIBLE_API_KEY in environment variable."
+                )
+            api_url = os.getenv("JUDGE_OPENAI_COMPATIBLE_API_URL") or None
+            if not api_url:
+                raise ValueError(
+                    "openai compatible api url is not set, please set OPENAI_COMPATIBLE_API_URL in environment variable."
+                )
+            # APIクライアントを初期化
+            # api_urlをエンドポイントに使うことで、OpenAI API Compatibleな推論方法を利用可能とする
+            judge_model = OpenAI(api_key=api_key, base_url=api_url)
+            result = judge_model.chat.completions.create(
                 model=model_name,
                 messages=messages,
-                temperature=0,
+                temperature=0.2,
                 max_tokens=1024,
-                response_format={"type": "json_object"},
             )
         evaluation_result = result.choices[0].message.content.strip()
 

@@ -11,7 +11,7 @@ from mistralai import Mistral
 from openai import OpenAI
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from vllm import LLM, SamplingParams
-
+from .helpers.llmcaller.litellm_caller import LiteLLMCaller
 
 # 各種モデルをロードするための抽象化された関数
 def load_model(
@@ -32,18 +32,18 @@ def load_model(
     # OpenAI互換のAPIの場合
     elif inference_method == "openai_compatible_api":
         # APIキーとエンドポイントを環境変数から取得
-        api_key = os.getenv("OPENAI_COMPATIBLE_APY_KEY") or None
+        api_key = os.getenv("OPENAI_COMPATIBLE_API_KEY") or None
         if not api_key:
             raise ValueError(
                 "openai compatible api key is not set, please set OPENAI_COMPATIBLE_API_KEY in environment variable."
             )
-        api_url = os.getenv("OPENAI_COMPATIBLE_APY_URL") or None
+        api_url = os.getenv("OPENAI_COMPATIBLE_API_URL") or None
         if not api_url:
             raise ValueError(
                 "openai compatible api url is not set, please set OPENAI_COMPATIBLE_API_URL in environment variable."
             )
         # APIクライアントを初期化
-        # api_urlをエンドポイントに使うようにすることで、OpenAI API Compatibleな推論方法を利用可能とする
+        # api_urlをエンドポイントに使うことで、OpenAI API Compatibleな推論方法を利用可能とする
         model = OpenAI(api_key=api_key, base_url=api_url)
         tokenizer = None
 
@@ -121,6 +121,16 @@ def load_model(
         )
         tokenizer = AutoTokenizer.from_pretrained(model_name, cache_dir=cache_dir)
 
+    elif inference_method == "litellm":
+        print("Loading litellm model...")
+        model = LiteLLMCaller(
+            model=model_name,
+            api_base="http://localhost:8000/v1",
+        )
+        litellm.set_verbose= True
+        os.environ['LITELLM_LOG'] = 'DEBUG'
+        tokenizer = None
+        
     # transformersを使ってローカルで推論する場合
     elif inference_method == "transformers":
         # Transformersを使用してモデルをロード
