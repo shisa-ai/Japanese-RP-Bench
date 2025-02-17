@@ -92,7 +92,8 @@ if [ "${SLURM_PROCID}" -eq 0 ]; then
     # Build vLLM command with conditional pipeline parallel flag
 # Execute the command and capture PID directly
     VLLM_CMD="vllm serve $MODEL --tensor-parallel-size $TENSOR_PARALLEL_SIZE"
-    VLLM_CMD="$VLLM_CMD --gpu-memory-utilization 0.95 --num-scheduler-steps 20 --max-model-len 14000 --host 0.0.0.0 --port 8000 --trust-remote-code"
+    VLLM_CMD="$VLLM_CMD --gpu-memory-utilization 0.95 --num-scheduler-steps 20 --max-model-len 8192 --host 0.0.0.0 --port 8000 --trust-remote-code"
+    # VLLM_CMD="$VLLM_CMD --gpu-memory-utilization 0.95 --num-scheduler-steps 20 --max-model-len 14000 --host 0.0.0.0 --port 8000 --trust-remote-code"
 
     log "Full vLLM command:"
     log "$VLLM_CMD"
