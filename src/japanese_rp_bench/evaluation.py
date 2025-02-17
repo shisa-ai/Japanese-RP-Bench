@@ -4,15 +4,7 @@ from typing import Any, List, Optional
 
 import google.generativeai as genai
 import os
-from vllm import SamplingParams
-import cohere
-import google.generativeai as genai
-import torch
-from anthropic import Anthropic, AnthropicBedrock
-from mistralai import Mistral
 from openai import OpenAI
-from transformers import AutoModelForCausalLM, AutoTokenizer
-from vllm import LLM, SamplingParams
 from .helpers.llmcaller.litellm_caller import LiteLLMCaller
 
 
@@ -154,6 +146,8 @@ def evaluate_conversation(
 
     # vLLMを使ってローカルで推論する場合
     elif inference_method == "vllm":
+        # Import vLLM only when needed
+        from vllm import LLM, SamplingParams
         messages = [{"role": "system", "content": evaluation_prompt}]
         messages.append({"role": "user", "content": input_text})
         sampling_params = SamplingParams(

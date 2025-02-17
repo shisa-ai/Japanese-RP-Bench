@@ -7,12 +7,21 @@ import regex as re
 
 # loggingを有効化する関数
 def setup_logging():
+    # Set up basic configuration
     logging.basicConfig(
-        level=logging.INFO,
+        level=logging.WARNING,  # Set default level to WARNING
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         handlers=[logging.StreamHandler()],
     )
-    return logging.getLogger(__name__)
+    
+    # Disable httpx logging
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    
+    # Set japanese_rp_bench logger to WARNING level
+    logger = logging.getLogger("japanese_rp_bench")
+    logger.setLevel(logging.WARNING)
+    
+    return logger
 
 
 # json stringをescapeする関数

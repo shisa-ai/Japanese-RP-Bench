@@ -1,37 +1,44 @@
 # models.py
 
+import json
 import os
-from typing import Any, Dict, List, Optional, Tuple
+import time
+from typing import Any, Dict, List, Optional, Tuple, Union
 
-import cohere
-import google.generativeai as genai
-import torch
-from anthropic import Anthropic, AnthropicBedrock
-from mistralai import Mistral
-from openai import OpenAI
-from transformers import AutoModelForCausalLM, AutoTokenizer
-from vllm import LLM, SamplingParams
-from .helpers.llmcaller.litellm_caller import LiteLLMCaller
 
 # 各種モデルをロードするための抽象化された関数
 def load_model(
-    model_name: str, inference_method: str, tensor_parallel_size: int, cache_dir: str
-) -> Tuple[Any, Optional[Any]]:
-    # OpenAI APIの場合
+    model_name: str,
+    inference_method: str,
+    tensor_parallel_size: int = 1,
+    cache_dir: Optional[str] = None,
+) -> Tuple[Any, Any]:
+    """
+    指定されたモデルをロードする関数
+
+    Args:
+        model_name (str): モデル名
+        inference_method (str): 推論方法
+        tensor_parallel_size (int, optional): テンソル並列数. Defaults to 1.
+        cache_dir (Optional[str], optional): キャッシュディレクトリ. Defaults to None.
+
+    Returns:
+        Tuple[Any, Any]: モデルとトークナイザーのタプル
+    """
+    # OpenAI APIを使用する場合
     if inference_method == "openai_api":
-        # APIキーとエンドポイントを環境変数から取得
+        from openai import OpenAI
         api_key = os.getenv("OPENAI_API_KEY") or None
         if not api_key:
             raise ValueError(
                 "openai api key is not set, please set OPENAI_API_KEY in environment variable."
             )
-        # APIクライアントを初期化
-        model = OpenAI(api_key=api_key)
-        tokenizer = None
+        client = OpenAI(api_key=api_key)
+        return client, None
 
     # OpenAI互換のAPIの場合
     elif inference_method == "openai_compatible_api":
-        # APIキーとエンドポイントを環境変数から取得
+        from openai import OpenAI
         api_key = os.getenv("OPENAI_COMPATIBLE_API_KEY") or None
         if not api_key:
             raise ValueError(
@@ -42,25 +49,23 @@ def load_model(
             raise ValueError(
                 "openai compatible api url is not set, please set OPENAI_COMPATIBLE_API_URL in environment variable."
             )
-        # APIクライアントを初期化
-        # api_urlをエンドポイントに使うことで、OpenAI API Compatibleな推論方法を利用可能とする
-        model = OpenAI(api_key=api_key, base_url=api_url)
-        tokenizer = None
+        client = OpenAI(api_key=api_key, base_url=api_url)
+        return client, None
 
     # AnthropicのAPIの場合
     elif inference_method == "anthropic_api":
-        # APIキーとエンドポイントを環境変数から取得
+        from anthropic import Anthropic
         api_key = os.getenv("ANTHROPIC_API_KEY") or None
         if not api_key:
             raise ValueError(
                 "anthropic api key is not set, please set ANTHROPIC_API_KEY in environment variable."
             )
-        # APIクライアントを初期化
-        model = Anthropic(api_key=api_key)
-        tokenizer = None
+        client = Anthropic(api_key=api_key)
+        return client, None
 
     # Amazon BedrockのAnthropic APIの場合
     elif inference_method == "aws_anthropic_api":
+        from anthropic import AnthropicBedrock
         aws_access_key = os.getenv("AWS_ACCESS_KEY") or None
         aws_secret_key = os.getenv("AWS_SECRET_KEY") or None
         if not aws_access_key:
@@ -71,48 +76,78 @@ def load_model(
             raise ValueError(
                 "AWS secret key is not set, please set AWS_SECRET_KEY in environment variable."
             )
-        model = AnthropicBedrock(
+        client = AnthropicBedrock(
             aws_access_key=aws_access_key, aws_secret_key=aws_secret_key
         )
-        tokenizer = None
+        return client, None
 
     # CohereのAPIの場合
     elif inference_method == "cohere_api":
+        from cohere import Client
         api_key = os.getenv("COHERE_API_KEY") or None
         if not api_key:
             raise ValueError(
                 "cohere api key is not set, please set COHERE_API_KEY in environment variable."
             )
-        # APIクライアントを初期化
-        model = cohere.Client(api_key=api_key)
-        tokenizer = None
+        client = Client(api_key=api_key)
+        return client, None
 
     # Google AI APIの場合
     elif inference_method == "google_api":
+        from google.generativeai import configure, GenerativeModel
         api_key = os.getenv("GOOGLE_API_KEY") or None
         if not api_key:
             raise ValueError(
                 "google api key is not set, please set GOOGLE_API_KEY in environment variable."
             )
-        genai.configure(api_key=api_key)
-        # Google APIではsystem promptを推論時ではなくClient作成時にしか指定できないので、ここではスキップする
-        model = None
-        tokenizer = None
+        configure(api_key=api_key)
+        model = GenerativeModel(model_name)
+        return model, None
 
     # MistralAI APIの場合
     elif inference_method == "mistralai_api":
+        from mistralai import Mistral
         api_key = os.getenv("MISTRAL_API_KEY") or None
         if not api_key:
             raise ValueError(
-                "mistral api key is not set, please set GOOGLE_API_KEY in environment variable."
+                "mistral api key is not set, please set MISTRAL_API_KEY in environment variable."
             )
-        # APIクライアントを初期化
-        model = Mistral(api_key=api_key)
-        tokenizer = None
+        client = Mistral(api_key=api_key)
+        return client, None
+
+    # LiteLLMを使用する場合
+    elif inference_method == "litellm":
+        from .helpers.llmcaller.litellm_caller import LiteLLMCaller
+
+        client = LiteLLMCaller(
+            model=model_name,
+            api_base="http://localhost:8000/v1",
+        )
+        litellm.set_verbose= True
+        os.environ['LITELLM_LOG'] = 'DEBUG'
+        return client, None
+        
+    # Hugging Faceのモデルを使用する場合
+    elif inference_method == "huggingface":
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+        print("Loading Hugging Face model...")
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_name,
+            cache_dir=cache_dir,
+            trust_remote_code=True,
+        )
+        model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            cache_dir=cache_dir,
+            device_map="auto",
+            trust_remote_code=True,
+        )
+        return model, tokenizer
 
     # vLLMを使ってローカルで推論する場合
     elif inference_method == "vllm":
-        # vLLMを使用してモデルをロード
+        from vllm import LLM, SamplingParams
+        print("Loading vLLM model...")
         model = LLM(
             model=model_name,
             tensor_parallel_size=tensor_parallel_size,
@@ -120,20 +155,11 @@ def load_model(
             enable_prefix_caching=True,
         )
         tokenizer = AutoTokenizer.from_pretrained(model_name, cache_dir=cache_dir)
+        return model, tokenizer
 
-    elif inference_method == "litellm":
-        print("Loading litellm model...")
-        model = LiteLLMCaller(
-            model=model_name,
-            api_base="http://localhost:8000/v1",
-        )
-        litellm.set_verbose= True
-        os.environ['LITELLM_LOG'] = 'DEBUG'
-        tokenizer = None
-        
     # transformersを使ってローカルで推論する場合
     elif inference_method == "transformers":
-        # Transformersを使用してモデルをロード
+        from transformers import AutoModelForCausalLM, AutoTokenizer
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
             torch_dtype=torch.bfloat16,
@@ -141,10 +167,9 @@ def load_model(
             cache_dir=cache_dir,
         )
         tokenizer = AutoTokenizer.from_pretrained(model_name, cache_dir=cache_dir)
+        return model, tokenizer
     else:
         raise ValueError(f"Unknown inference method: {inference_method}")
-    return model, tokenizer
-
 
 # 各種モデルから応答を生成する関数
 def generate_response(
@@ -290,17 +315,14 @@ def generate_response(
             "max_output_tokens": 1024,
             "response_mime_type": "text/plain",
         }
-        model = genai.GenerativeModel(
-            model_name=model_name,
-            generation_config=generation_config,
-            safety_settings={
-                "HATE": "BLOCK_NONE",
-                "HARASSMENT": "BLOCK_NONE",
-                "SEXUAL": "BLOCK_NONE",
-                "DANGEROUS": "BLOCK_NONE",
-            },
-            system_instruction=system_prompt,
-        )
+        model = model.model
+        safety_settings={
+            "HATE": "BLOCK_NONE",
+            "HARASSMENT": "BLOCK_NONE",
+            "SEXUAL": "BLOCK_NONE",
+            "DANGEROUS": "BLOCK_NONE",
+        }
+        system_instruction=system_prompt
         history = []
         for i, conversation in enumerate(conversations):
             if i == len(conversations) - 1:
