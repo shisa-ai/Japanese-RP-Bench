@@ -60,6 +60,10 @@ class LLMRanker:
         if self.params is None:
             raise ValueError("Must fit model before getting rankings")
         
+        '''
+        See more about EN & LT: https://chatgpt.com/share/67b34c25-61c8-8012-8667-17077284d92a
+        '''
+
         # 1) Exponential & Normalize (EN)
         exp_params = np.exp(self.params)
         sum_exp = np.sum(exp_params)
