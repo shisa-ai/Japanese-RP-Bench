@@ -59,11 +59,26 @@ class LLMRanker:
         """
         if self.params is None:
             raise ValueError("Must fit model before getting rankings")
+        
+        # 1) Exponential & Normalize (EN)
+        exp_params = np.exp(self.params)
+        sum_exp = np.sum(exp_params)
+        en_scores = exp_params / sum_exp  # 0-1 scale
+        en_scores_0_10 = en_scores * 10   # 0-10 scale if desired
+
+        # 2) Logistic Transform (LT)
+        # Shift so the average model has param=0 => logistic transform is 0.5 on average
+        mean_param = np.mean(self.params)
+        shifted_params = self.params - mean_param
+        lt_scores = 1.0 / (1.0 + np.exp(-shifted_params))  # 0-1 scale
+        lt_scores_0_10 = lt_scores * 10                    # 0-10 scale if desired
             
         rankings = pd.DataFrame({
             'llm': [self.idx_to_llm[i] for i in range(self.n_items)],
             'score': self.params,
-            'wins': [self.wins_count[self.idx_to_llm[i]] for i in range(self.n_items)]
+            'wins': [self.wins_count[self.idx_to_llm[i]] for i in range(self.n_items)],
+            'EN': en_scores_0_10,
+            'LT': lt_scores_0_10,
         })
         return rankings.sort_values('score', ascending=False).reset_index(drop=True)
     
