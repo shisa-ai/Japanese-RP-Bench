@@ -51,7 +51,7 @@ def main():
     backend = "litellm"
     backend_params = {"base_url": f"http://athenev2/v1",
                     "max_requests_per_minute": 30,
-                    "max_tokens_per_minute": 10000000}
+                    "max_tokens_per_minute": 100000}
 
     model_name = "hosted_vllm/Nexusflow/Athene-V2-Chat"
     comparer = ConversationComparer(

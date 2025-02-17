@@ -2,7 +2,7 @@
 #SBATCH --partition=dev
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --gres=gpu:8
+#SBATCH --gres=gpu:2
 #SBATCH --cpus-per-task=48
 #SBATCH --mem=209715M
 #SBATCH --time=24:00:00
@@ -10,6 +10,7 @@
 
 # Default values
 MODEL="${MODEL:-}"  # Use empty string if MODEL is not set
+LOW_CONTEXT="${LOW_CONTEXT:-false}"  # Default to false if not set
 BASE_RESULTS_DIR="/fsx/ubuntu/evals/Japanese-RP-Bench/logs"
 CONFIG_FILE="configs/config.yaml"  # Default config file location
 
@@ -18,7 +19,7 @@ echo "Running on node: $(hostname)"
     # Validate required arguments
 if [ -z "$MODEL" ]; then
     echo "Error: MODEL environment variable is required"
-    echo "Usage: MODEL=<model_name> sbatch $0"
+    echo "Usage: MODEL=<model_name> [LOW_CONTEXT=true] sbatch $0"
     exit 1
 fi
 
@@ -60,7 +61,7 @@ cd /fsx/ubuntu/evals/Japanese-RP-Bench
 # Calculate cluster size and parallelism
 TOTAL_GPUS=$((SLURM_NNODES * $(nvidia-smi -L | wc -l)))
 GPUS_PER_NODE=$(nvidia-smi -L | wc -l)
-TENSOR_PARALLEL_SIZE=$TOTAL_GPUS  # Use all GPUs across all nodes for tensor parallel
+TENSOR_PARALLEL_SIZE=2
 
 log "Cluster configuration:"
 log "- Total nodes: $SLURM_NNODES"
@@ -92,8 +93,11 @@ if [ "${SLURM_PROCID}" -eq 0 ]; then
     # Build vLLM command with conditional pipeline parallel flag
 # Execute the command and capture PID directly
     VLLM_CMD="vllm serve $MODEL --tensor-parallel-size $TENSOR_PARALLEL_SIZE"
-    VLLM_CMD="$VLLM_CMD --gpu-memory-utilization 0.95 --num-scheduler-steps 20 --max-model-len 8192 --host 0.0.0.0 --port 8000 --trust-remote-code"
-    # VLLM_CMD="$VLLM_CMD --gpu-memory-utilization 0.95 --num-scheduler-steps 20 --max-model-len 14000 --host 0.0.0.0 --port 8000 --trust-remote-code"
+    if [ "$LOW_CONTEXT" = "true" ]; then
+        VLLM_CMD="$VLLM_CMD --gpu-memory-utilization 0.95 --num-scheduler-steps 20 --max-model-len 8192 --host 0.0.0.0 --port 8000 --trust-remote-code"
+    else
+        VLLM_CMD="$VLLM_CMD --gpu-memory-utilization 0.95 --num-scheduler-steps 20 --max-model-len 14000 --host 0.0.0.0 --port 8000 --trust-remote-code"
+    fi
 
     log "Full vLLM command:"
     log "$VLLM_CMD"
@@ -156,8 +160,12 @@ if [ "${SLURM_PROCID}" -eq 0 ]; then
     # Create temporary config with model name substituted
     envsubst < ./configs/simple_config.yaml > ./configs/temp_config.yaml
     
-    japanese-rp-bench --config ./configs/temp_config.yaml
-    
+    if [ "$LOW_CONTEXT" = "true" ]; then
+        japanese-rp-bench --config ./configs/temp_config.yaml --low-context
+    else
+        japanese-rp-bench --config ./configs/temp_config.yaml
+    fi
+
     # Clean up
     rm ./configs/temp_config.yaml
     

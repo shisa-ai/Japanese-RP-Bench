@@ -38,6 +38,7 @@ def process_parallel(test_case, idx, config, target_model, target_tokenizer, use
                 config["target_inference_method"],
                 assistant_system_prompt,
                 conversations,
+                low_context=config.get("low_context", False),
             )
             conversation_history.append(assistant_response)
         # 2ターン目以降はユーザー入力とアシスタントの応答の両方を生成
@@ -58,6 +59,7 @@ def process_parallel(test_case, idx, config, target_model, target_tokenizer, use
                 config["user_inference_method"],
                 user_system_prompt,
                 conversations,
+                low_context=config.get("low_context", False),
             )
             conversation_history.append(user_input)
             # 次に、アシスタント側の応答を生成
@@ -76,6 +78,7 @@ def process_parallel(test_case, idx, config, target_model, target_tokenizer, use
                 config["target_inference_method"],
                 assistant_system_prompt,
                 conversations,
+                low_context=config.get("low_context", False),
             )
             conversation_history.append(assistant_response)
 
@@ -195,6 +198,7 @@ def run_eval(config) -> None:
                         config["target_inference_method"],
                         assistant_system_prompt,
                         conversations,
+                        low_context=config.get("low_context", False),
                     )
                     conversation_history.append(assistant_response)
                 # 2ターン目以降はユーザー入力とアシスタントの応答の両方を生成
@@ -215,6 +219,7 @@ def run_eval(config) -> None:
                         config["user_inference_method"],
                         user_system_prompt,
                         conversations,
+                        low_context=config.get("low_context", False),
                     )
                     conversation_history.append(user_input)
                     # 次に、アシスタント側の応答を生成
@@ -233,6 +238,7 @@ def run_eval(config) -> None:
                         config["target_inference_method"],
                         assistant_system_prompt,
                         conversations,
+                        low_context=config.get("low_context", False),
                     )
                     conversation_history.append(assistant_response)
 
@@ -387,11 +393,17 @@ def run():
     parser.add_argument(
         "--config", type=str, required=True, help="設定ファイルへのパス (YAML形式)"
     )
+    parser.add_argument(
+        "--low-context", action="store_true", help="Use lower token limit (256 instead of 1024) for responses"
+    )
     args = parser.parse_args()
 
     # YAMLファイルから設定を読み込む
     with open(args.config, "r", encoding="utf-8") as f:
         config = yaml.safe_load(f)
+    
+    # Add low_context flag to config
+    config["low_context"] = args.low_context
 
     os.makedirs("./conversations", exist_ok=True)
     os.makedirs("./evaluations", exist_ok=True)

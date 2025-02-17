@@ -179,6 +179,7 @@ def generate_response(
     inference_method: str,
     system_prompt: str,
     conversations: List[Dict[str, str]],
+    low_context: bool = False,
 ) -> str:
     # OpenAIやOpenAI互換のAPIの場合
     if inference_method in ["openai_api", "openai_compatible_api"]:
@@ -207,7 +208,7 @@ def generate_response(
                 model=model_name,
                 messages=messages,
                 temperature=0.7,
-                max_tokens=1024,
+                max_tokens=256 if low_context else 1024,
             )
         response = result.choices[0].message.content.strip()
 

@@ -2,6 +2,7 @@ import os
 import json
 from datasets import Dataset
 from bespokelabs import curator
+import click
 
 
 class ConversationComparer(curator.LLM):
@@ -24,7 +25,11 @@ class ConversationComparer(curator.LLM):
         }
 
 
-def main():
+@click.command()
+@click.option('--base-url', '-u', required=True, help='Base URL for the API endpoint')
+@click.option('--judge-model-name', '-j', required=True, help='Model name to use for judging the conversations')
+@click.option('--test-model-name', '-t', required=True, help='Model name being tested/evaluated')
+def main(base_url, judge_model_name, test_model_name):
     """Compare conversations between different LLMs using a third LLM as analyzer.
 
     Reads the conversation pairs from the JSONL file, creates a dataset,
@@ -36,35 +41,35 @@ def main():
     
     # Read conversation pairs
     conversation_pairs = []
-    with open("all_conversation_pairs.jsonl", "r", encoding="utf-8") as f:
+    with open("latest_conversation_pairs.jsonl", "r", encoding="utf-8") as f:
         for line in f:
             conversation_pairs.append(json.loads(line))
     
     # Create dataset and shuffle it
     conversations = Dataset.from_list(conversation_pairs)
     conversations = conversations.shuffle(seed=42)  # Set seed for reproducibility
-
     # vLLM settings (commented out for now)
     # HOST = "localhost"
     # PORT = 8000
     # model_path = "hosted_vllm/meta-llama/Llama-3.3-70B-Instruct"
     # model_name = model_path
     backend = "litellm"
-    backend_params = {"base_url": f"http://llama33/v1/",
-                    "max_requests_per_minute": 30}
+    backend_params = {"base_url": base_url,
+                    "max_requests_per_minute": 128,
+                    "max_tokens_per_minute": 10000000}
 
-    model_name = "hosted_vllm/meta-llama/Llama-3.3-70B-Instruct"
     comparer = ConversationComparer(
-        model_name=model_name,
+        model_name="hosted_vllm/"+ judge_model_name,
         backend=backend,  
         backend_params=backend_params,
-    )   
+    )
 
     results = comparer(conversations)
     
     # Save analysis results
-    safe_model_name = model_name.replace("/", "_").replace("-", "_")
-    output_path = os.path.join("analysis", f"conversation_analysis_{safe_model_name}.jsonl")
+    safe_judge_model_name = judge_model_name.replace("/", "_").replace("-", "_")
+    safe_test_model_name = test_model_name.replace("/", "_").replace("-", "_")
+    output_path = os.path.join("analysis", f"{safe_test_model_name}_judged_by_{safe_judge_model_name}.jsonl")
     
     with open(output_path, "w", encoding="utf-8") as f:
         for item in results:

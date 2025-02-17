@@ -9,6 +9,7 @@ class LLMRanker:
         self.idx_to_llm = {}  # Reverse mapping
         self.n_items = 0
         self.params = None
+        self.wins_count = {}  # Track raw number of wins for each LLM
 
     def process_comparisons(self, comparisons: List[Tuple[str, str, str]]):
         """
@@ -28,11 +29,16 @@ class LLMRanker:
         self.idx_to_llm = {idx: llm for llm, idx in self.llm_to_idx.items()}
         self.n_items = len(self.llm_to_idx)
         
+        # Initialize wins count for each LLM
+        self.wins_count = {llm: 0 for llm in unique_llms}
+        
         # Convert comparisons to format needed by choix
         processed_comparisons = []
         for llm1, llm2, winner in comparisons:
             idx1 = self.llm_to_idx[llm1]
             idx2 = self.llm_to_idx[llm2]
+            # Track wins
+            self.wins_count[winner] += 1
             if winner == llm1:
                 processed_comparisons.append((idx1, idx2))
             else:
@@ -49,14 +55,15 @@ class LLMRanker:
         
     def get_rankings(self) -> pd.DataFrame:
         """
-        Returns a DataFrame with LLMs ranked by their scores.
+        Returns a DataFrame with LLMs ranked by their scores and win counts.
         """
         if self.params is None:
             raise ValueError("Must fit model before getting rankings")
             
         rankings = pd.DataFrame({
             'llm': [self.idx_to_llm[i] for i in range(self.n_items)],
-            'score': self.params
+            'score': self.params,
+            'wins': [self.wins_count[self.idx_to_llm[i]] for i in range(self.n_items)]
         })
         return rankings.sort_values('score', ascending=False).reset_index(drop=True)
     
@@ -76,52 +83,58 @@ class LLMRanker:
 if __name__ == "__main__":
     import json
     import re
+    import os
+    import glob
 
-    # Read and process the JSONL file
+    # Read and process all JSONL files in the analysis directory
     comparisons = []
-    with open('analysis/conversation_analysis_hosted_vllm_Nexusflow_Athene_V2_Chat.jsonl', 'r') as f:
-        for line in f:
-            try:
-                data = json.loads(line)
-                if 'llm_a' not in data or 'llm_b' not in data or 'analysis' not in data:
-                    continue
-                
-                # Extract the winner from analysis field
-                match = re.search(r'<answer>(.*?)</answer>', data['analysis'])
-                if not match:
-                    continue
+    analysis_files = glob.glob('analysis/*.jsonl')
+    
+    for file_path in analysis_files:
+        print(f"\nProcessing {file_path}...")
+        with open(file_path, 'r') as f:
+            for line in f:
+                try:
+                    data = json.loads(line)
+                    if 'llm_a' not in data or 'llm_b' not in data or 'analysis' not in data:
+                        continue
                     
-                answer_content = match.group(1)
-                # Remove anything that isn't an ASCII letter
-                cleaned_answer = ''.join(c for c in answer_content if c.isalpha())
-                
-                if not cleaned_answer:
-                    continue
+                    # Extract the winner from analysis field
+                    match = re.search(r'<answer>(.*?)</answer>', data['analysis'])
+                    if not match:
+                        continue
+                        
+                    answer_content = match.group(1)
+                    # Remove anything that isn't an ASCII letter
+                    cleaned_answer = ''.join(c for c in answer_content if c.isalpha())
                     
-                cleaned_answer = cleaned_answer.lower()
-                
-                llm1 = data['llm_a']
-                llm2 = data['llm_b']
-                
-                if cleaned_answer == 'a':
-                    winner = llm1
-                elif cleaned_answer == 'b':
-                    winner = llm2
-                else:
-                    print(f"Error: Invalid answer content in <answer> tag: {answer_content}")
-                    continue
+                    if not cleaned_answer:
+                        continue
+                        
+                    cleaned_answer = cleaned_answer.lower()
                     
-                comparisons.append((llm1, llm2, winner))
-                
-            except json.JSONDecodeError:
-                print("Error: Invalid JSON line encountered")
-                continue
-            except Exception as e:
-                print(f"Error processing line: {str(e)}")
-                continue
+                    llm1 = data['llm_a']
+                    llm2 = data['llm_b']
+                    
+                    if cleaned_answer == 'a':
+                        winner = llm1
+                    elif cleaned_answer == 'b':
+                        winner = llm2
+                    else:
+                        print(f"Error: Invalid answer content in <answer> tag: {answer_content}")
+                        continue
+                        
+                    comparisons.append((llm1, llm2, winner))
+                    
+                except json.JSONDecodeError:
+                    print("Error: Invalid JSON line encountered")
+                    continue
+                except Exception as e:
+                    print(f"Error processing line: {str(e)}")
+                    continue
     
     if not comparisons:
-        print("No valid comparisons found in the file")
+        print("No valid comparisons found in any files")
         exit(1)
         
     # Initialize and fit the model
@@ -133,3 +146,15 @@ if __name__ == "__main__":
     print("\nRankings:")
     print(rankings)
     
+    # Print win counts
+    print("\nRaw win counts:")
+    for llm, wins in sorted(ranker.wins_count.items(), key=lambda x: x[1], reverse=True):
+        print(f"{llm}: {wins} wins")
+    
+    # Save rankings to scores/scores.jsonl
+    os.makedirs('scores', exist_ok=True)
+    with open('scores/scores.jsonl', 'w') as f:
+        rankings_dict = rankings.to_dict(orient='records')
+        for rank in rankings_dict:
+            json.dump(rank, f)
+            f.write('\n')
