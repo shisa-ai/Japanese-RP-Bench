@@ -48,7 +48,7 @@ def main():
     for filename in os.listdir(eval_dir):
         if filename.endswith('.jsonl'):
             filepath = os.path.join(eval_dir, filename)
-            model_name = filename.replace('_Aratako-Japanese-RP-Bench-testdata-SFW.jsonl', '')
+            model_name = filename.replace('.Aratako-Japanese-RP-Bench-testdata-SFW.jsonl', '')
             metric_means, total_average = process_file(filepath)
             
             results.append({

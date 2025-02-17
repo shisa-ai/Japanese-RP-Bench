@@ -63,8 +63,9 @@ def main():
     results = comparer(conversations)
     
     # Save analysis results
-    safe_model_name = model_name.replace("/", "_").replace("-", "_")
-    output_path = os.path.join("analysis", f"conversation_analysis_{safe_model_name}.jsonl")
+    safe_model_name = model_name.replace("/", "__")
+    output_path = os.path.join("analysis", f"conversation_analysis.{safe_model_name}.jsonl")
+
     
     with open(output_path, "w", encoding="utf-8") as f:
         for item in results:

@@ -88,8 +88,8 @@ def write_pair_settings(settings, file_a, file_b):
     """Format the settings for the conversation pair."""
     return {
         "id": hashlib.md5(f"{file_a}_{file_b}".encode()).hexdigest(),
-        "llm_a": os.path.splitext(file_a)[0].replace("_Aratako-Japanese-RP-Bench-testdata-SFW", ""),
-        "llm_b": os.path.splitext(file_b)[0].replace("_Aratako-Japanese-RP-Bench-testdata-SFW", ""),
+        "llm_a": os.path.splitext(file_a)[0].replace(".Aratako-Japanese-RP-Bench-testdata-SFW", ""),
+        "llm_b": os.path.splitext(file_b)[0].replace(".Aratako-Japanese-RP-Bench-testdata-SFW", ""),
         "settings": settings
     }
 

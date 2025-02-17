@@ -67,9 +67,9 @@ def main(base_url, judge_model_name, test_model_name):
     results = comparer(conversations)
     
     # Save analysis results
-    safe_judge_model_name = judge_model_name.replace("/", "_").replace("-", "_")
-    safe_test_model_name = test_model_name.replace("/", "_").replace("-", "_")
-    output_path = os.path.join("analysis", f"{safe_test_model_name}_judged_by_{safe_judge_model_name}.jsonl")
+    safe_judge_model_name = judge_model_name.replace("/", "__")
+    safe_test_model_name = test_model_name.replace("/", "__")
+    output_path = os.path.join("analysis", f"{safe_test_model_name}.{safe_judge_model_name}.jsonl")
     
     with open(output_path, "w", encoding="utf-8") as f:
         for item in results:
